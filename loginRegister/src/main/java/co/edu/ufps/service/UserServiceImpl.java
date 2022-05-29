@@ -1,15 +1,18 @@
 package co.edu.ufps.service;
 
 import java.util.Calendar;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import co.edu.ufps.entity.PasswordResetToken;
 import co.edu.ufps.entity.User;
 import co.edu.ufps.entity.VerificationToken;
 import co.edu.ufps.model.UserModel;
+import co.edu.ufps.repository.PasswordResetTokenRepository;
 import co.edu.ufps.repository.UserRepository;
 import co.edu.ufps.repository.VerificationTokenRepository;
 
@@ -21,6 +24,9 @@ public class UserServiceImpl implements UserService{
 	
 	@Autowired
 	private VerificationTokenRepository verificationRepo;
+	
+	@Autowired
+	private PasswordResetTokenRepository passResetRepo;
 	
 	@Autowired
 	private PasswordEncoder passwordEncoder;
@@ -69,6 +75,53 @@ public class UserServiceImpl implements UserService{
 		token.setToken(UUID.randomUUID().toString());
 		verificationRepo.save(token);
 		return token;
+	}
+
+	@Override
+	public User findByEmail(String email) {
+		return userRepo.findByEmail(email);
+	}
+
+	@Override
+	public void createPasswordResetTokenForUser(User user, String token) {
+		PasswordResetToken passwordResetToken = new PasswordResetToken(user,token);	
+		passResetRepo.save(passwordResetToken);
+	}
+
+	@Override
+	public String validatePasswordReset(String token) {
+	
+		PasswordResetToken passwordResetToken= passResetRepo.findByToken(token);
+		if(passwordResetToken==null) {return "invalido";}
+		
+		User user= passwordResetToken.getUser();
+		Calendar cal= Calendar.getInstance();
+		
+		if (passwordResetToken.getExpirationTime().getTime() - cal.getTime().getTime()<=0) {
+			passResetRepo.delete(passwordResetToken);
+			return "expirado";
+		}
+		
+		
+		return "valido";
+	}
+
+	@Override
+	public Optional<User> getUserByPasswordResetToken(String token) {
+		return Optional.ofNullable(passResetRepo.findByToken(token).getUser());
+	}
+
+	@Override
+	public void changePassword(User user, String newPassword) {
+		user.setClave(passwordEncoder.encode(newPassword));
+		userRepo.save(user);
+		
+	}
+
+	@Override
+	public boolean checkValidOldPassowrd(User user, String oldPassword) {
+		
+		return passwordEncoder.matches(oldPassword, user.getClave());
 	}
 	
 	
